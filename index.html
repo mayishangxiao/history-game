@@ -167,6 +167,16 @@ body {
 	font-size: 15px;
 	color: #9b937c;
 }
+
+/* 触屏设备竖屏时自动显示遮罩（纯CSS媒体查询，不依赖JS，兼容所有手机浏览器） */
+@media (pointer: coarse) and (orientation: portrait) {
+	#orient-overlay { display: flex !important; }
+}
+@media (hover: none) and (orientation: portrait) {
+	#orient-overlay { display: flex !important; }
+}
+/* 测试用：URL 加 ?portrait=1 可强制显示遮罩 */
+body.force-portrait #orient-overlay { display: flex !important; }
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
@@ -300,32 +310,12 @@ const engine = new Engine(GODOT_CONFIG);
 }());
 
 // ===== 移动端横屏优化 =====
+// 遮罩的显示/隐藏由上方 CSS 媒体查询控制（触屏设备 + 竖屏），不依赖 JS，更稳定
 (function () {
-	// 触屏设备判断（含手动测试参数 ?touch=1）
-	var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
-		|| (location.search.indexOf('touch=1') >= 0);
-	if (!isTouch) {
-		return;
+	// 测试用：?portrait=1 强制显示遮罩
+	if (location.search.indexOf('portrait=1') >= 0) {
+		document.body.classList.add('force-portrait');
 	}
-
-	// 竖屏遮罩：触屏设备竖屏时显示，横屏自动隐藏（可用 ?portrait=1 强制测试）
-	var overlay = document.getElementById('orient-overlay');
-	var forcePortrait = location.search.indexOf('portrait=1') >= 0;
-
-	function isPortrait() {
-		return forcePortrait || window.innerHeight > window.innerWidth;
-	}
-
-	function updateOrient() {
-		overlay.style.display = isPortrait() ? 'flex' : 'none';
-	}
-
-	window.addEventListener('resize', updateOrient);
-	window.addEventListener('orientationchange', function () {
-		// 等系统完成旋转后再判断
-		setTimeout(updateOrient, 300);
-	});
-	updateOrient();
 
 	// 用户首次触摸时尝试锁定横屏（部分浏览器支持；失败静默忽略）
 	function tryLockLandscape() {
