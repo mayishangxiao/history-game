@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 	<head>
 		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 		<title>历史游戏</title>
 		<style>
 html, body, #canvas {
@@ -11,11 +11,19 @@ html, body, #canvas {
 	border: 0;
 }
 
+html, body {
+	height: 100%;
+}
+
 body {
 	color: white;
 	background-color: black;
 	overflow: hidden;
 	touch-action: none;
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-tap-highlight-color: transparent;
+	overscroll-behavior: none;
 }
 
 #canvas {
@@ -89,6 +97,76 @@ body {
 	text-align: center;
 	z-index: 1;
 }
+
+/* ===== 移动端横屏引导遮罩 ===== */
+#orient-overlay {
+	position: fixed;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(8, 8, 10, 0.88);
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	z-index: 9999;
+	color: #e8d9a8;
+	font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+	text-align: center;
+	padding: 24px;
+}
+
+#orient-overlay .phone {
+	width: 56px;
+	height: 100px;
+	border: 3px solid #e8d9a8;
+	border-radius: 10px;
+	position: relative;
+	margin-bottom: 26px;
+	animation: phone-rotate 1.6s ease-in-out infinite;
+}
+
+#orient-overlay .phone::before {
+	content: '';
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	top: 8px;
+	width: 18px;
+	height: 4px;
+	border-radius: 2px;
+	background: #e8d9a8;
+}
+
+#orient-overlay .phone::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	bottom: 8px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	border: 2px solid #e8d9a8;
+}
+
+@keyframes phone-rotate {
+	0%   { transform: rotate(0deg); }
+	45%  { transform: rotate(90deg); }
+	100% { transform: rotate(90deg); }
+}
+
+#orient-overlay .orient-title {
+	font-size: 26px;
+	letter-spacing: 3px;
+	margin-bottom: 12px;
+}
+
+#orient-overlay .orient-sub {
+	font-size: 15px;
+	color: #9b937c;
+}
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
@@ -109,9 +187,15 @@ body {
 			<div id="status-notice"></div>
 		</div>
 
+		<div id="orient-overlay">
+			<div class="phone"></div>
+			<div class="orient-title">请横屏游玩</div>
+			<div class="orient-sub">旋转手机至横向，享受最佳体验</div>
+		</div>
+
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":48949564,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":48949804,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -213,6 +297,52 @@ const engine = new Engine(GODOT_CONFIG);
 			setStatusMode('hidden');
 		}, displayFailureNotice);
 	}
+}());
+
+// ===== 移动端横屏优化 =====
+(function () {
+	// 触屏设备判断（含手动测试参数 ?touch=1）
+	var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+		|| (location.search.indexOf('touch=1') >= 0);
+	if (!isTouch) {
+		return;
+	}
+
+	// 竖屏遮罩：触屏设备竖屏时显示，横屏自动隐藏（可用 ?portrait=1 强制测试）
+	var overlay = document.getElementById('orient-overlay');
+	var forcePortrait = location.search.indexOf('portrait=1') >= 0;
+
+	function isPortrait() {
+		return forcePortrait || window.innerHeight > window.innerWidth;
+	}
+
+	function updateOrient() {
+		overlay.style.display = isPortrait() ? 'flex' : 'none';
+	}
+
+	window.addEventListener('resize', updateOrient);
+	window.addEventListener('orientationchange', function () {
+		// 等系统完成旋转后再判断
+		setTimeout(updateOrient, 300);
+	});
+	updateOrient();
+
+	// 用户首次触摸时尝试锁定横屏（部分浏览器支持；失败静默忽略）
+	function tryLockLandscape() {
+		try {
+			if (screen.orientation && typeof screen.orientation.lock === 'function') {
+				var p = screen.orientation.lock('landscape');
+				if (p && typeof p.catch === 'function') {
+					p.catch(function () {});
+				}
+			}
+		} catch (e) {}
+	}
+
+	window.addEventListener('pointerdown', function once() {
+		tryLockLandscape();
+		window.removeEventListener('pointerdown', once);
+	});
 }());
 		</script>
 	</body>
