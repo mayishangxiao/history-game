@@ -310,31 +310,62 @@ const engine = new Engine(GODOT_CONFIG);
 	}
 }());
 
-// ===== 移动端横屏优化 =====
-// 遮罩的显示/隐藏由上方 CSS 媒体查询控制（触屏设备 + 竖屏），不依赖 JS，更稳定
-(function () {
-	// 测试用：?portrait=1 强制显示遮罩
-	if (location.search.indexOf('portrait=1') >= 0) {
-		document.body.classList.add('force-portrait');
-	}
-
-	// 用户首次触摸时尝试锁定横屏（部分浏览器支持；失败静默忽略）
-	function tryLockLandscape() {
-		try {
-			if (screen.orientation && typeof screen.orientation.lock === 'function') {
-				var p = screen.orientation.lock('landscape');
-				if (p && typeof p.catch === 'function') {
-					p.catch(function () {});
+	// ===== 移动端自动横屏（全屏+方向锁定）=====
+	// screen.orientation.lock 必须在全屏下才生效，首次交互时先全屏再锁横屏
+	(function () {
+		if (location.search.indexOf('portrait=1') >= 0) {
+			document.body.classList.add('force-portrait');
+		}
+		var _locked = false;
+		function lockOrientation() {
+			try {
+				if (screen.orientation && typeof screen.orientation.lock === 'function') {
+					var p = screen.orientation.lock('landscape');
+					if (p && typeof p.catch === 'function') p.catch(function () {});
 				}
-			}
-		} catch (e) {}
-	}
-
-	window.addEventListener('pointerdown', function once() {
-		tryLockLandscape();
-		window.removeEventListener('pointerdown', once);
-	});
-}());
+			} catch (e) {}
+		}
+		function enterFullscreenAndLock() {
+			if (_locked) return;
+			_locked = true;
+			var elem = document.documentElement;
+			var fsMethod = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen;
+			if (!fsMethod) { lockOrientation(); return; }
+			var done = false;
+			var finish = function (ok) {
+				if (done) return; done = true;
+				if (ok) setTimeout(lockOrientation, 150); else lockOrientation();
+			};
+			try {
+				var result = fsMethod.call(elem);
+				if (result && typeof result.then === 'function') {
+					result.then(function () { finish(true); }).catch(function () { finish(false); });
+				} else {
+					var onFs = function () {
+						document.removeEventListener('fullscreenchange', onFs);
+						document.removeEventListener('webkitfullscreenchange', onFs);
+						finish(!!(document.fullscreenElement || document.webkitFullscreenElement));
+					};
+					document.addEventListener('fullscreenchange', onFs);
+					document.addEventListener('webkitfullscreenchange', onFs);
+					setTimeout(function () { finish(false); }, 1500);
+				}
+			} catch (e) { finish(false); }
+		}
+		var handler = function () {
+			enterFullscreenAndLock();
+			window.removeEventListener('pointerdown', handler);
+			window.removeEventListener('keydown', handler);
+			window.removeEventListener('touchstart', handler);
+		};
+		window.addEventListener('pointerdown', handler);
+		window.addEventListener('keydown', handler);
+		window.addEventListener('touchstart', handler);
+		var canvas = document.getElementById('canvas');
+		if (canvas) canvas.addEventListener('pointerdown', function () {
+			if (!_locked) enterFullscreenAndLock();
+		});
+	}());
 		</script>
 	</body>
 </html>
