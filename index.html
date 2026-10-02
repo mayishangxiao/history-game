@@ -34,6 +34,59 @@ body {
 	outline: none;
 }
 
+/* ===== 触屏设备竖屏时 CSS 强制横屏（不依赖 orientation.lock，兼容所有手机浏览器）===== */
+@media (pointer: coarse) and (orientation: portrait) {
+	#canvas {
+		width: 100vh !important;
+		height: 100vw !important;
+		transform: rotate(90deg);
+		transform-origin: center center;
+		position: fixed !important;
+		top: 50% !important;
+		left: 50% !important;
+		margin-left: -50vh !important;
+		margin-top: -50vw !important;
+	}
+	#status {
+		width: 100vh !important;
+		height: 100vw !important;
+		transform: rotate(90deg);
+		transform-origin: center center;
+		position: fixed !important;
+		top: 50% !important;
+		left: 50% !important;
+		margin-left: -50vh !important;
+		margin-top: -50vw !important;
+	}
+	/* 已强制横屏，隐藏"请横屏游玩"遮罩 */
+	#orient-overlay { display: none !important; }
+}
+@media (hover: none) and (orientation: portrait) {
+	#canvas {
+		width: 100vh !important;
+		height: 100vw !important;
+		transform: rotate(90deg);
+		transform-origin: center center;
+		position: fixed !important;
+		top: 50% !important;
+		left: 50% !important;
+		margin-left: -50vh !important;
+		margin-top: -50vw !important;
+	}
+	#status {
+		width: 100vh !important;
+		height: 100vw !important;
+		transform: rotate(90deg);
+		transform-origin: center center;
+		position: fixed !important;
+		top: 50% !important;
+		left: 50% !important;
+		margin-left: -50vh !important;
+		margin-top: -50vw !important;
+	}
+	#orient-overlay { display: none !important; }
+}
+
 #status, #status-splash, #status-progress {
 	position: absolute;
 	left: 0;
@@ -168,13 +221,16 @@ body {
 	color: #9b937c;
 }
 
-/* 触屏设备竖屏时自动显示遮罩（纯CSS媒体查询，不依赖JS，兼容所有手机浏览器） */
+/* 触屏设备竖屏时：CSS 强制旋转横屏（上方已定义），不再显示旋转提示遮罩 */
+/* 如需恢复"请横屏游玩"提示，删除上方强制横屏 CSS 并恢复以下媒体查询 */
+/*
 @media (pointer: coarse) and (orientation: portrait) {
 	#orient-overlay { display: flex !important; }
 }
 @media (hover: none) and (orientation: portrait) {
 	#orient-overlay { display: flex !important; }
 }
+*/
 /* 测试用：URL 加 ?portrait=1 可强制显示遮罩 */
 body.force-portrait #orient-overlay { display: flex !important; }
 		</style>
