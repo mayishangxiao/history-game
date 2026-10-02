@@ -422,6 +422,62 @@ const engine = new Engine(GODOT_CONFIG);
 			if (!_locked) enterFullscreenAndLock();
 		});
 	}());
+
+	// ===== 强制横屏：覆盖 window 尺寸，让 Godot 按横屏渲染 =====
+	(function () {
+		if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
+		var _w = window.innerWidth, _h = window.innerHeight;
+		function isPortrait() {
+			return window.innerHeight > window.innerWidth;
+		}
+		function getLandscapeDims() {
+			if (isPortrait()) {
+				return { w: window.innerHeight, h: window.innerWidth };
+			}
+			return { w: window.innerWidth, h: window.innerHeight };
+		}
+		function applyOverride() {
+			var dims = getLandscapeDims();
+			// 覆盖 window.innerWidth / innerHeight
+			try {
+				Object.defineProperty(window, 'innerWidth', {
+					configurable: true,
+					get: function () { return dims.w; }
+				});
+				Object.defineProperty(window, 'innerHeight', {
+					configurable: true,
+					get: function () { return dims.h; }
+				});
+			} catch (e) {}
+			// 覆盖 screen.width / screen.height
+			try {
+				Object.defineProperty(screen, 'width', {
+					configurable: true,
+					get: function () { return dims.w; }
+				});
+				Object.defineProperty(screen, 'height', {
+					configurable: true,
+					get: function () { return dims.h; }
+				});
+			} catch (e) {}
+			// 确保 canvas CSS 尺寸是横屏（覆盖 Godot 可能设置的内联样式）
+			var canvas = document.getElementById('canvas');
+			if (canvas && isPortrait()) {
+				canvas.style.setProperty('width', '100vh', 'important');
+				canvas.style.setProperty('height', '100vw', 'important');
+			}
+			// 触发 resize 让 Godot 重新计算
+			window.dispatchEvent(new Event('resize'));
+		}
+		applyOverride();
+		window.addEventListener('resize', function () {
+			// 延迟一帧再覆盖，确保 Godot 先处理完
+			requestAnimationFrame(applyOverride);
+		});
+		window.addEventListener('orientationchange', function () {
+			setTimeout(applyOverride, 200);
+		});
+	}());
 		</script>
 	</body>
 </html>
