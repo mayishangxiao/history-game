@@ -262,7 +262,7 @@ body.force-portrait #orient-overlay { display: flex !important; }
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index_v3","experimentalVK":false,"fileSizes":{"index_v3.pck":19266900,"index_v3.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index_v4","experimentalVK":false,"fileSizes":{"index_v4.pck":19266900,"index_v4.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -476,6 +476,98 @@ const engine = new Engine(GODOT_CONFIG);
 		});
 		window.addEventListener('orientationchange', function () {
 			setTimeout(applyOverride, 200);
+		});
+	}());
+
+	// ===== CSS旋转时触屏坐标重映射（解决旋转后按键失效）=====
+	(function () {
+		if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
+		var canvas = document.getElementById('canvas');
+		if (!canvas) return;
+
+		function isRotated() {
+			return window.innerHeight > window.innerWidth; // 竖屏时CSS旋转生效
+		}
+
+		function remapTouch(t) {
+			if (!isRotated()) return { x: t.clientX, y: t.clientY };
+			// 90度顺时针旋转：newX = clientY, newY = viewportW - clientX
+			return {
+				x: t.clientY,
+				y: window.innerWidth - t.clientX
+			};
+		}
+
+		function makeTouchList(touches, target) {
+			var list = [];
+			for (var i = 0; i < touches.length; i++) {
+				var t = touches[i];
+				var pos = remapTouch(t);
+				try {
+					list.push(new Touch({
+						identifier: t.identifier,
+						target: target,
+						clientX: pos.x,
+						clientY: pos.y,
+						pageX: pos.x,
+						pageY: pos.y,
+						screenX: pos.x,
+						screenY: pos.y,
+						radiusX: t.radiusX || 1,
+						radiusY: t.radiusY || 1,
+						rotationAngle: t.rotationAngle || 0,
+						force: t.force || 1
+					}));
+				} catch (e) {
+					// Touch constructor 不支持时回退到鼠标事件
+					return null;
+				}
+			}
+			return list;
+		}
+
+		function dispatchTouchEvent(type, originalEvent) {
+			if (!isRotated()) return; // 横屏时不拦截
+			originalEvent.preventDefault();
+			originalEvent.stopPropagation();
+
+			var touches = makeTouchList(originalEvent.touches, canvas);
+			var targetTouches = makeTouchList(originalEvent.targetTouches, canvas);
+			var changedTouches = makeTouchList(originalEvent.changedTouches, canvas);
+
+			if (touches === null || targetTouches === null || changedTouches === null) {
+				// Touch API 不支持，回退鼠标事件
+				var t = originalEvent.changedTouches[0];
+				if (!t) return;
+				var pos = remapTouch(t);
+				var mouseType = type === 'touchstart' ? 'mousedown' : (type === 'touchend' ? 'mouseup' : 'mousemove');
+				var me = new MouseEvent(mouseType, {
+					bubbles: true,
+					cancelable: true,
+					clientX: pos.x,
+					clientY: pos.y,
+					button: 0
+				});
+				canvas.dispatchEvent(me);
+				return;
+			}
+
+			var evt = new TouchEvent(type, {
+				bubbles: true,
+				cancelable: true,
+				composed: true,
+				touches: touches,
+				targetTouches: targetTouches,
+				changedTouches: changedTouches
+			});
+			canvas.dispatchEvent(evt);
+		}
+
+		// 捕获阶段拦截，在 Godot 处理之前重映射
+		['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(function (type) {
+			window.addEventListener(type, function (e) {
+				dispatchTouchEvent(type, e);
+			}, { passive: false, capture: true });
 		});
 	}());
 		</script>
