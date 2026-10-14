@@ -314,13 +314,18 @@ const engine = new Engine(GODOT_CONFIG);
 	}
 }());
 
-	// ===== 移动端自动横屏（全屏+方向锁定）=====
-	// screen.orientation.lock 必须在全屏下才生效，首次交互时先全屏再锁横屏
+	// ===== 移动端横屏引导 =====
+	// 点按钮：尝试"全屏 + 锁定横屏"（支持的浏览器自动横屏）；不支持则提示手动旋转
+	// 用户手动把手机横过来后，CSS 媒体查询会自动隐藏本遮罩
 	(function () {
 		if (location.search.indexOf('portrait=1') >= 0) {
 			document.body.classList.add('force-portrait');
 		}
-		var _locked = false;
+		var sub = document.querySelector('#orient-overlay .orient-sub');
+		var btn = document.getElementById('orient-btn');
+
+		function isLandscape() { return window.innerWidth > window.innerHeight; }
+
 		function lockOrientation() {
 			try {
 				if (screen.orientation && typeof screen.orientation.lock === 'function') {
@@ -329,50 +334,44 @@ const engine = new Engine(GODOT_CONFIG);
 				}
 			} catch (e) {}
 		}
-		function enterFullscreenAndLock() {
-			if (_locked) return;
-			_locked = true;
+		function promptManual() {
+			if (sub) sub.innerHTML = '本浏览器不支持自动旋转<br>请打开手机"自动旋转"，再横握手机即可';
+			if (btn) btn.textContent = '重试自动旋转';
+		}
+		function verify() {
+			setTimeout(function () { if (!isLandscape()) promptManual(); }, 800);
+		}
+		function tryAuto() {
 			var elem = document.documentElement;
-			var fsMethod = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen;
-			if (!fsMethod) { lockOrientation(); return; }
-			var done = false;
-			var finish = function (ok) {
-				if (done) return; done = true;
-				if (ok) setTimeout(lockOrientation, 150); else lockOrientation();
-			};
+			var fs = elem.requestFullscreen || elem.webkitRequestFullscreen || elem.msRequestFullscreen;
+			if (!fs) { lockOrientation(); verify(); return; }
 			try {
-				var result = fsMethod.call(elem);
+				var result = fs.call(elem);
 				if (result && typeof result.then === 'function') {
-					result.then(function () { finish(true); }).catch(function () { finish(false); });
+					result.then(function () { setTimeout(lockOrientation, 150); verify(); })
+						.catch(function () { lockOrientation(); verify(); });
 				} else {
 					var onFs = function () {
 						document.removeEventListener('fullscreenchange', onFs);
 						document.removeEventListener('webkitfullscreenchange', onFs);
-						finish(!!(document.fullscreenElement || document.webkitFullscreenElement));
+						setTimeout(lockOrientation, 150);
+						verify();
 					};
 					document.addEventListener('fullscreenchange', onFs);
 					document.addEventListener('webkitfullscreenchange', onFs);
-					setTimeout(function () { finish(false); }, 1500);
+					setTimeout(verify, 1000);
 				}
-			} catch (e) { finish(false); }
+			} catch (e) { lockOrientation(); verify(); }
 		}
-		var handler = function () {
-			enterFullscreenAndLock();
-			window.removeEventListener('pointerdown', handler);
-			window.removeEventListener('keydown', handler);
-			window.removeEventListener('touchstart', handler);
-		};
-		window.addEventListener('pointerdown', handler);
-		window.addEventListener('keydown', handler);
-		window.addEventListener('touchstart', handler);
-		var canvas = document.getElementById('canvas');
-		if (canvas) canvas.addEventListener('pointerdown', function () {
-			if (!_locked) enterFullscreenAndLock();
-		});
-		var obtn = document.getElementById('orient-btn');
-		if (obtn) {
-			obtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); enterFullscreenAndLock(); });
-			obtn.addEventListener('click', function (e) { e.stopPropagation(); enterFullscreenAndLock(); });
+		function onBtn(e) {
+			e.stopPropagation();
+			e.preventDefault();
+			if (sub) sub.textContent = '正在进入横屏…';
+			tryAuto();
+		}
+		if (btn) {
+			btn.addEventListener('pointerdown', onBtn);
+			btn.addEventListener('click', onBtn);
 		}
 	}());
 		</script>
