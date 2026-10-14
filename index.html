@@ -34,58 +34,8 @@ body {
 	outline: none;
 }
 
-/* ===== 触屏设备竖屏时 CSS 强制横屏（不依赖 orientation.lock，兼容所有手机浏览器）===== */
-@media (pointer: coarse) and (orientation: portrait) {
-	#canvas {
-		width: 100vh !important;
-		height: 100vw !important;
-		transform: rotate(90deg);
-		transform-origin: center center;
-		position: fixed !important;
-		top: 50% !important;
-		left: 50% !important;
-		margin-left: -50vh !important;
-		margin-top: -50vw !important;
-	}
-	#status {
-		width: 100vh !important;
-		height: 100vw !important;
-		transform: rotate(90deg);
-		transform-origin: center center;
-		position: fixed !important;
-		top: 50% !important;
-		left: 50% !important;
-		margin-left: -50vh !important;
-		margin-top: -50vw !important;
-	}
-	/* 已强制横屏，隐藏"请横屏游玩"遮罩 */
-	#orient-overlay { display: none !important; }
-}
-@media (hover: none) and (orientation: portrait) {
-	#canvas {
-		width: 100vh !important;
-		height: 100vw !important;
-		transform: rotate(90deg);
-		transform-origin: center center;
-		position: fixed !important;
-		top: 50% !important;
-		left: 50% !important;
-		margin-left: -50vh !important;
-		margin-top: -50vw !important;
-	}
-	#status {
-		width: 100vh !important;
-		height: 100vw !important;
-		transform: rotate(90deg);
-		transform-origin: center center;
-		position: fixed !important;
-		top: 50% !important;
-		left: 50% !important;
-		margin-left: -50vh !important;
-		margin-top: -50vw !important;
-	}
-	#orient-overlay { display: none !important; }
-}
+/* 已取消"竖屏 CSS 强制旋转"：改为竖屏时显示提示遮罩（见下方 #orient-overlay），
+   横屏后触摸坐标天然正确，避免坐标重映射导致按键失效。 */
 
 #status, #status-splash, #status-progress {
 	position: absolute;
@@ -221,16 +171,13 @@ body {
 	color: #9b937c;
 }
 
-/* 触屏设备竖屏时：CSS 强制旋转横屏（上方已定义），不再显示旋转提示遮罩 */
-/* 如需恢复"请横屏游玩"提示，删除上方强制横屏 CSS 并恢复以下媒体查询 */
-/*
+/* 竖屏时显示"请横屏游玩"遮罩（首次触摸会自动尝试全屏+锁横屏，见下方脚本） */
 @media (pointer: coarse) and (orientation: portrait) {
 	#orient-overlay { display: flex !important; }
 }
 @media (hover: none) and (orientation: portrait) {
 	#orient-overlay { display: flex !important; }
 }
-*/
 /* 测试用：URL 加 ?portrait=1 可强制显示遮罩 */
 body.force-portrait #orient-overlay { display: flex !important; }
 		</style>
@@ -257,12 +204,13 @@ body.force-portrait #orient-overlay { display: flex !important; }
 		<div id="orient-overlay">
 			<div class="phone"></div>
 			<div class="orient-title">请横屏游玩</div>
-			<div class="orient-sub">旋转手机至横向，享受最佳体验</div>
+			<div class="orient-sub">点击下方按钮，或旋转手机至横向</div>
+			<button id="orient-btn" style="margin-top:26px;padding:13px 30px;font-size:18px;border-radius:26px;background:#3a3320;color:#e8d9a8;border:2px solid #e8d9a8;">点我进入横屏</button>
 		</div>
 
 		<script src="index.js"></script>
 		<script>
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index_v8","experimentalVK":false,"fileSizes":{"index_v8.pck":5336868,"index_v8.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":5336836,"index.wasm":39514754},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"serviceWorker":"index.service.worker.js"};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 
@@ -421,154 +369,11 @@ const engine = new Engine(GODOT_CONFIG);
 		if (canvas) canvas.addEventListener('pointerdown', function () {
 			if (!_locked) enterFullscreenAndLock();
 		});
-	}());
-
-	// ===== 强制横屏：覆盖 window 尺寸，让 Godot 按横屏渲染 =====
-	(function () {
-		if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
-		var _w = window.innerWidth, _h = window.innerHeight;
-		function isPortrait() {
-			return window.innerHeight > window.innerWidth;
+		var obtn = document.getElementById('orient-btn');
+		if (obtn) {
+			obtn.addEventListener('pointerdown', function (e) { e.stopPropagation(); enterFullscreenAndLock(); });
+			obtn.addEventListener('click', function (e) { e.stopPropagation(); enterFullscreenAndLock(); });
 		}
-		function getLandscapeDims() {
-			if (isPortrait()) {
-				return { w: window.innerHeight, h: window.innerWidth };
-			}
-			return { w: window.innerWidth, h: window.innerHeight };
-		}
-		function applyOverride() {
-			var dims = getLandscapeDims();
-			// 覆盖 window.innerWidth / innerHeight
-			try {
-				Object.defineProperty(window, 'innerWidth', {
-					configurable: true,
-					get: function () { return dims.w; }
-				});
-				Object.defineProperty(window, 'innerHeight', {
-					configurable: true,
-					get: function () { return dims.h; }
-				});
-			} catch (e) {}
-			// 覆盖 screen.width / screen.height
-			try {
-				Object.defineProperty(screen, 'width', {
-					configurable: true,
-					get: function () { return dims.w; }
-				});
-				Object.defineProperty(screen, 'height', {
-					configurable: true,
-					get: function () { return dims.h; }
-				});
-			} catch (e) {}
-			// 确保 canvas CSS 尺寸是横屏（覆盖 Godot 可能设置的内联样式）
-			var canvas = document.getElementById('canvas');
-			if (canvas && isPortrait()) {
-				canvas.style.setProperty('width', '100vh', 'important');
-				canvas.style.setProperty('height', '100vw', 'important');
-			}
-			// 触发 resize 让 Godot 重新计算
-			window.dispatchEvent(new Event('resize'));
-		}
-		applyOverride();
-		window.addEventListener('resize', function () {
-			// 延迟一帧再覆盖，确保 Godot 先处理完
-			requestAnimationFrame(applyOverride);
-		});
-		window.addEventListener('orientationchange', function () {
-			setTimeout(applyOverride, 200);
-		});
-	}());
-
-	// ===== CSS旋转时触屏坐标重映射（解决旋转后按键失效）=====
-	(function () {
-		if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
-		var canvas = document.getElementById('canvas');
-		if (!canvas) return;
-
-		function isRotated() {
-			return window.innerHeight > window.innerWidth; // 竖屏时CSS旋转生效
-		}
-
-		function remapTouch(t) {
-			if (!isRotated()) return { x: t.clientX, y: t.clientY };
-			// 90度顺时针旋转：newX = clientY, newY = viewportW - clientX
-			return {
-				x: t.clientY,
-				y: window.innerWidth - t.clientX
-			};
-		}
-
-		function makeTouchList(touches, target) {
-			var list = [];
-			for (var i = 0; i < touches.length; i++) {
-				var t = touches[i];
-				var pos = remapTouch(t);
-				try {
-					list.push(new Touch({
-						identifier: t.identifier,
-						target: target,
-						clientX: pos.x,
-						clientY: pos.y,
-						pageX: pos.x,
-						pageY: pos.y,
-						screenX: pos.x,
-						screenY: pos.y,
-						radiusX: t.radiusX || 1,
-						radiusY: t.radiusY || 1,
-						rotationAngle: t.rotationAngle || 0,
-						force: t.force || 1
-					}));
-				} catch (e) {
-					// Touch constructor 不支持时回退到鼠标事件
-					return null;
-				}
-			}
-			return list;
-		}
-
-		function dispatchTouchEvent(type, originalEvent) {
-			if (!isRotated()) return; // 横屏时不拦截
-			originalEvent.preventDefault();
-			originalEvent.stopPropagation();
-
-			var touches = makeTouchList(originalEvent.touches, canvas);
-			var targetTouches = makeTouchList(originalEvent.targetTouches, canvas);
-			var changedTouches = makeTouchList(originalEvent.changedTouches, canvas);
-
-			if (touches === null || targetTouches === null || changedTouches === null) {
-				// Touch API 不支持，回退鼠标事件
-				var t = originalEvent.changedTouches[0];
-				if (!t) return;
-				var pos = remapTouch(t);
-				var mouseType = type === 'touchstart' ? 'mousedown' : (type === 'touchend' ? 'mouseup' : 'mousemove');
-				var me = new MouseEvent(mouseType, {
-					bubbles: true,
-					cancelable: true,
-					clientX: pos.x,
-					clientY: pos.y,
-					button: 0
-				});
-				canvas.dispatchEvent(me);
-				return;
-			}
-
-			var evt = new TouchEvent(type, {
-				bubbles: true,
-				cancelable: true,
-				composed: true,
-				touches: touches,
-				targetTouches: targetTouches,
-				changedTouches: changedTouches
-			});
-			canvas.dispatchEvent(evt);
-		}
-
-		// 捕获阶段拦截，在 Godot 处理之前重映射
-		['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(function (type) {
-			window.addEventListener(type, function (e) {
-				dispatchTouchEvent(type, e);
-			}, { passive: false, capture: true });
-		});
 	}());
 		</script>
 	</body>
